@@ -1,0 +1,1414 @@
+<!doctype html>
+<html lang="en" class="app-mode">
+<head>
+<meta charset="utf-8">
+<title>Second Brain Atlas</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#05060f">
+<meta name="robots" content="noindex, nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Second Brain">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="description" content="A glowing space map of a personal second brain: every planet is a note, every line a reason two ideas belong together.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@400;500;600&family=Unbounded:wght@500;600&display=swap">
+<style>
+  /* One visual world: deep space. The page is dark by design in every host theme. */
+  :root {
+    color-scheme: dark;
+    --void: #05060f;
+    --deep: #0c0f24;
+    --glass: rgba(13, 16, 36, 0.62);
+    --glass-strong: rgba(10, 12, 28, 0.9);
+    --glass-hover: rgba(214, 222, 255, 0.07);
+    --line: rgba(214, 222, 255, 0.09);
+    --line-2: rgba(214, 222, 255, 0.17);
+    --ink: #eef0ff;
+    --ink-2: #b9bedf;
+    --muted: #8087ad;
+    --star: #fff1cf;
+    --focus: #a9d8ff;
+    /* area colours: the validated categorical order, dark-surface steps */
+    --fam-academics: #3987e5;
+    --fam-build: #e66767;
+    --fam-physics: #9085e9;
+    --fam-markets: #d95926;
+    --fam-math: #199e70;
+    --fam-personal: #c98500;
+    --fam-research: #d55181;
+    --fam-code: #008300;
+    --fam-core: #fff1cf;
+    --font-display: "Unbounded", "Segoe UI", system-ui, sans-serif;
+    --font-ui: "Geist", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-data: "Geist Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+    --panel-w: min(440px, 40vw);
+    --radius: 14px;
+  }
+
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: radial-gradient(130% 100% at 50% 42%, var(--deep) 0%, var(--void) 70%), var(--void);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    -webkit-font-smoothing: antialiased;
+  }
+  .app { position: relative; height: 100%; overflow: hidden; }
+  canvas.layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #bg, #fx { pointer-events: none; }
+  #sky { cursor: grab; touch-action: none; }
+  #sky.is-hovering { cursor: pointer; }
+  #sky:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+  /* ---------- glass surfaces ---------- */
+  .surface {
+    background: var(--glass);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  }
+  .label {
+    font-family: var(--font-data);
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  /* a planet you can put anywhere in the UI: lit from the top left, with a halo */
+  .planet {
+    --c: var(--ink-2);
+    display: inline-block; flex: none;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: radial-gradient(circle at 34% 30%, color-mix(in srgb, var(--c) 28%, white) 0%, var(--c) 52%, color-mix(in srgb, var(--c) 45%, black) 100%);
+    box-shadow: 0 0 8px 1px color-mix(in srgb, var(--c) 70%, transparent), 0 0 20px 4px color-mix(in srgb, var(--c) 22%, transparent);
+  }
+  .planet.big { width: 30px; height: 30px; }
+
+  /* ---------- title ---------- */
+  .hud-top {
+    position: absolute; top: 16px; left: 16px; right: 16px;
+    display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px 16px;
+    pointer-events: none;
+  }
+  .hud-top > * { pointer-events: auto; }
+  .app.panel-open .hud-top { right: calc(var(--panel-w) + 28px); }
+  .brand {
+    flex: 0 1 340px; min-width: 250px; box-sizing: border-box;
+    padding: 16px 18px 15px;
+    display: grid; gap: 7px;
+  }
+  .brand h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 21px;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  .brand .sub { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink-2); max-width: 34ch; }
+  .stats { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 3px 0 0; font-family: var(--font-data); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .stats b { color: var(--ink); font-weight: 500; }
+
+  /* ---------- controls ---------- */
+  .controls {
+    display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; justify-content: flex-end;
+    margin-left: auto; max-width: 100%;
+  }
+  .search { position: relative; width: 280px; max-width: 100%; }
+  .search input {
+    width: 100%; box-sizing: border-box; height: 38px;
+    padding: 0 36px 0 16px;
+    font-family: var(--font-ui); font-size: 13.5px; color: var(--ink);
+    background: var(--glass);
+    border: 1px solid var(--line-2); border-radius: 19px;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
+  .search input::placeholder { color: var(--muted); }
+  .search input:focus { border-color: color-mix(in srgb, var(--focus) 60%, transparent); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 18%, transparent); }
+  .search kbd {
+    position: absolute; right: 11px; top: 10px;
+    font-family: var(--font-data); font-size: 10px; color: var(--muted);
+    border: 1px solid var(--line-2); border-radius: 5px; padding: 1px 5px;
+  }
+  .results {
+    position: absolute; top: 44px; left: 0; right: 0;
+    margin: 0; padding: 5px; list-style: none;
+    max-height: 340px; overflow-y: auto; z-index: 5;
+    background: var(--glass-strong);
+  }
+  .results li button {
+    width: 100%; display: grid; grid-template-columns: 10px 1fr; gap: 2px 10px; align-items: center;
+    text-align: left; padding: 8px 9px; border: 0; border-radius: 9px; background: transparent; cursor: pointer;
+  }
+  .results li button[aria-selected="true"], .results li button:hover { background: var(--glass-hover); }
+  .results .t { font-size: 14px; line-height: 1.3; }
+  .results .p { grid-column: 2; font-family: var(--font-data); font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .views { display: flex; padding: 4px; gap: 2px; border-radius: 19px; }
+  .views button {
+    border: 0; background: transparent; cursor: pointer;
+    font-family: var(--font-ui); font-size: 12.5px; font-weight: 500;
+    padding: 6px 13px; border-radius: 15px; color: var(--ink-2);
+  }
+  .views button:hover { color: var(--ink); }
+  .views button[aria-pressed="true"] {
+    color: var(--void);
+    background: radial-gradient(circle at 30% 25%, #fff, var(--star) 60%);
+    box-shadow: 0 0 14px rgba(255, 241, 207, 0.45);
+  }
+
+  /* ---------- legend & area filters ---------- */
+  .legend {
+    position: absolute; left: 16px; bottom: 16px;
+    max-width: calc(100% - 32px);
+    display: grid; gap: 8px;
+  }
+  .app.panel-open .legend { max-width: calc(100% - var(--panel-w) - 60px); }
+  .key { display: flex; align-items: center; gap: 14px; padding: 9px 14px; width: fit-content; }
+  .key .scale { display: flex; align-items: flex-end; gap: 14px; font-family: var(--font-data); font-size: 10px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .key .scale span { display: grid; justify-items: center; gap: 5px; }
+  .chips { display: flex; gap: 6px; overflow-x: auto; padding: 4px 2px; scrollbar-width: thin; }
+  .chip {
+    flex: none; display: inline-flex; align-items: center; gap: 8px;
+    height: 32px; padding: 0 13px 0 11px; cursor: pointer;
+    font-family: var(--font-ui); font-size: 12.5px; font-weight: 500;
+    background: var(--glass); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 16px;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
+  .chip:hover { border-color: var(--line-2); }
+  .chip .n { color: var(--muted); font-family: var(--font-data); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+  .chip[aria-pressed="false"] { color: var(--muted); background: transparent; border-style: dashed; }
+  .chip[aria-pressed="false"] .planet { background: transparent; box-shadow: inset 0 0 0 1.5px var(--muted); }
+  .chip.reset { color: var(--star); }
+
+  /* ---------- note panel ---------- */
+  .panel {
+    position: absolute; top: 16px; right: 16px; bottom: 16px;
+    width: var(--panel-w);
+    display: flex; flex-direction: column;
+    background: var(--glass-strong);
+    overflow: hidden;
+  }
+  .panel header { padding: 18px 22px 14px; border-bottom: 1px solid var(--line); display: grid; gap: 10px; }
+  .panel .head { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; padding-right: 26px; }
+  .panel .where { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .panel h2 { margin: 3px 0 0; font-family: var(--font-ui); font-weight: 600; font-size: 21px; line-height: 1.25; text-wrap: balance; }
+  .panel .meta { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag { font-family: var(--font-data); font-size: 10px; color: var(--ink-2); border: 1px solid var(--line-2); border-radius: 999px; padding: 2px 8px; }
+  .panel .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .panel .actions a, .panel .actions button {
+    font-family: var(--font-ui); font-size: 12.5px; font-weight: 500;
+    color: var(--ink); text-decoration: none;
+    border: 1px solid var(--line-2); border-radius: 999px; padding: 6px 13px;
+    background: transparent; cursor: pointer;
+  }
+  .panel .actions a:hover, .panel .actions button:hover { background: var(--glass-hover); }
+  .panel .close {
+    position: absolute; top: 14px; right: 14px;
+    width: 30px; height: 30px; display: grid; place-items: center;
+    border: 1px solid var(--line); background: transparent; cursor: pointer;
+    font-size: 18px; line-height: 1; color: var(--ink-2); border-radius: 50%;
+  }
+  .panel .close:hover { background: var(--glass-hover); color: var(--ink); }
+  .panel .body { overflow-y: auto; padding: 6px 22px 26px; }
+  .md { font-size: 15px; line-height: 1.65; color: var(--ink); }
+  .md > * { max-width: 62ch; }
+  .md h1 { display: none; }
+  .md h2 { font-family: var(--font-display); font-weight: 500; font-size: 14px; letter-spacing: 0.02em; margin: 24px 0 6px; color: var(--ink); }
+  .md h3 { font-size: 15px; font-weight: 600; margin: 18px 0 4px; }
+  .md p { margin: 8px 0; }
+  .md ul, .md ol { padding-left: 20px; margin: 8px 0; }
+  .md li { margin: 3px 0; }
+  .md li::marker { color: var(--muted); }
+  .md strong { color: #fff; font-weight: 600; }
+  .md a { color: var(--ink); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--focus) 45%, transparent); text-underline-offset: 3px; }
+  .md a:hover { color: var(--focus); text-decoration-color: var(--focus); }
+  .md .ghost { color: var(--ink-2); border-bottom: 1px dotted var(--line-2); }
+  .md code { font-family: var(--font-data); font-size: 12px; background: rgba(214, 222, 255, 0.08); padding: 1px 5px; border-radius: 5px; }
+  .md pre { background: rgba(214, 222, 255, 0.06); padding: 10px 12px; border-radius: 10px; overflow-x: auto; }
+  .md pre code { background: none; padding: 0; }
+  .md blockquote { margin: 12px 0; padding: 4px 14px; border-left: 2px solid color-mix(in srgb, var(--star) 45%, transparent); color: var(--ink-2); background: rgba(255, 241, 207, 0.035); border-radius: 0 10px 10px 0; }
+  .md hr { border: 0; border-top: 1px solid var(--line); margin: 18px 0; }
+  .md .tablewrap { overflow-x: auto; max-width: 100%; margin: 10px 0; }
+  .md table { border-collapse: collapse; font-size: 13.5px; line-height: 1.45; min-width: 100%; }
+  .md th, .md td { border-bottom: 1px solid var(--line); padding: 6px 10px 6px 0; text-align: left; vertical-align: top; font-variant-numeric: tabular-nums; }
+  .md th { font-family: var(--font-data); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 400; }
+  .md input[type="checkbox"] { accent-color: var(--star); }
+  .backlinks { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 14px; }
+  .backlinks ol { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 12px; }
+  .backlinks li { display: grid; grid-template-columns: 10px 1fr; gap: 0 10px; align-items: baseline; }
+  .backlinks .planet { width: 8px; height: 8px; transform: translateY(-1px); }
+  .backlinks button { border: 0; background: none; padding: 0; cursor: pointer; text-align: left; font-size: 14.5px; font-weight: 600; color: var(--ink); }
+  .backlinks button:hover { color: var(--focus); }
+  .backlinks .why { grid-column: 2; display: block; margin-top: 2px; font-size: 13px; line-height: 1.45; color: var(--ink-2); }
+
+  /* ---------- index view ---------- */
+  .index {
+    position: absolute; inset: 0; overflow-y: auto;
+    padding: 200px 16px 130px;
+    background: linear-gradient(rgba(5, 6, 15, 0.55), rgba(5, 6, 15, 0.55));
+  }
+  .app.panel-open .index { padding-right: calc(var(--panel-w) + 32px); }
+  .index-grid { display: grid; gap: 34px 36px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); max-width: 1200px; }
+  .index section h3 { margin: 0 0 10px; display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 500; font-size: 15px; letter-spacing: 0.01em; }
+  .index section h3 .n { font-family: var(--font-data); font-size: 11px; color: var(--muted); font-weight: 400; }
+  .index ul { list-style: none; margin: 0; padding: 0; }
+  .index li button { width: 100%; text-align: left; border: 0; background: none; padding: 5px 0; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; font-size: 14px; line-height: 1.35; color: var(--ink-2); border-bottom: 1px solid var(--line); }
+  .index li button:hover { color: var(--ink); }
+  .index li .d { font-family: var(--font-data); font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; padding-top: 3px; }
+
+  /* ---------- tooltip & hint ---------- */
+  .tip { position: absolute; pointer-events: none; padding: 9px 13px; max-width: 290px; z-index: 6; border-radius: 12px; background: var(--glass-strong); }
+  .tip .t { display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 1.3; font-weight: 600; }
+  .tip .m { font-family: var(--font-data); font-size: 10px; color: var(--ink-2); margin-top: 4px; }
+  .hint { position: absolute; right: 18px; bottom: 18px; font-size: 11.5px; color: var(--muted); text-align: right; line-height: 1.6; margin: 0; }
+  .app.panel-open .hint { display: none; }
+
+  /* ---------- installed app: safe areas, tools, offline, past-paper viewer ---------- */
+  .app-mode .hud-top { top: calc(16px + env(safe-area-inset-top, 0px)); left: calc(16px + env(safe-area-inset-left, 0px)); right: calc(16px + env(safe-area-inset-right, 0px)); }
+  .app-mode .app.panel-open .hud-top { right: calc(var(--panel-w) + 28px); }
+  .app-mode .legend { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: calc(16px + env(safe-area-inset-left, 0px)); }
+  .app-mode .panel { top: calc(16px + env(safe-area-inset-top, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); right: calc(16px + env(safe-area-inset-right, 0px)); }
+  .app-tools { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 3px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    border: 1px solid var(--line-2); background: transparent; color: var(--ink);
+    border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 500; cursor: pointer;
+  }
+  .pill:hover { background: var(--glass-hover); }
+  .pill:disabled { opacity: 0.6; cursor: progress; }
+  .pill.primary { color: var(--void); border-color: transparent; background: radial-gradient(circle at 30% 25%, #fff, var(--star) 60%); box-shadow: 0 0 14px rgba(255, 241, 207, 0.4); }
+  .state-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
+  .state-dot.ok { background: #5fe3a1; box-shadow: 0 0 8px rgba(95, 227, 161, 0.8); }
+  .offline-pop { position: absolute; z-index: 12; left: 16px; width: min(330px, calc(100% - 32px)); box-sizing: border-box; padding: 14px 16px 16px; display: grid; gap: 10px; background: var(--glass-strong); }
+  .offline-pop p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink-2); }
+  .offline-pop b { color: var(--ink); }
+  .offline-pop .row { display: flex; align-items: center; gap: 8px; }
+  .offline-pop progress { width: 100%; height: 6px; accent-color: var(--star); }
+  .viewer { position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; background: rgba(5, 6, 15, 0.95); }
+  .viewer-bar { display: flex; align-items: center; gap: 8px; margin: calc(12px + env(safe-area-inset-top, 0px)) 12px 6px; padding: 7px 8px 7px 10px; border-radius: 999px; }
+  .viewer-bar .vt { flex: 1; min-width: 0; display: grid; }
+  .viewer-bar .vt b { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pages { flex: 1; overflow: auto; padding: 8px 12px calc(28px + env(safe-area-inset-bottom, 0px)); display: grid; justify-items: center; align-content: start; gap: 14px; -webkit-overflow-scrolling: touch; }
+  .pages img { width: min(100%, 900px); height: auto; background: #fff; border-radius: 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); }
+  .viewer.inverted .pages img { filter: invert(1) hue-rotate(180deg); background: #000; }
+  .md a[data-paper] { color: var(--star); text-decoration-color: color-mix(in srgb, var(--star) 50%, transparent); }
+  .load-error { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 24px; text-align: center; color: var(--ink-2); font-size: 15px; }
+
+  /* ---------- lock screen (installed app with encrypted notes) ---------- */
+  .lock {
+    position: absolute; inset: 0; z-index: 30; display: grid; place-items: center;
+    padding: calc(24px + env(safe-area-inset-top, 0px)) 20px calc(24px + env(safe-area-inset-bottom, 0px));
+    background:
+      radial-gradient(1.5px 1.5px at 12% 18%, rgba(255, 255, 255, 0.9) 50%, transparent 51%),
+      radial-gradient(1px 1px at 28% 72%, rgba(255, 255, 255, 0.7) 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 44% 12%, rgba(207, 220, 255, 0.8) 50%, transparent 51%),
+      radial-gradient(1px 1px at 62% 84%, rgba(255, 255, 255, 0.6) 50%, transparent 51%),
+      radial-gradient(2px 2px at 78% 26%, rgba(255, 230, 199, 0.9) 50%, transparent 51%),
+      radial-gradient(1px 1px at 88% 62%, rgba(255, 255, 255, 0.7) 50%, transparent 51%),
+      radial-gradient(1px 1px at 8% 88%, rgba(207, 220, 255, 0.7) 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 94% 8%, rgba(255, 255, 255, 0.8) 50%, transparent 51%),
+      radial-gradient(120% 90% at 50% 40%, var(--deep) 0%, var(--void) 72%), var(--void);
+  }
+  .lock-card { width: min(360px, 100%); box-sizing: border-box; padding: 30px 24px 22px; display: grid; gap: 12px; justify-items: center; text-align: center; background: var(--glass-strong); }
+  .lock-card .planet.hero { width: 64px; height: 64px; --c: var(--fam-physics); margin-bottom: 6px; }
+  .lock-card h1 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 21px; letter-spacing: -0.01em; }
+  .lock-card p { margin: 0; color: var(--ink-2); font-size: 14px; line-height: 1.5; }
+  .lock-form { width: 100%; display: grid; gap: 10px; margin-top: 8px; }
+  .lock-form .user { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+  .lock-form input[type="password"] {
+    width: 100%; box-sizing: border-box; height: 48px; padding: 0 18px;
+    border-radius: 24px; border: 1px solid var(--line-2); background: rgba(214, 222, 255, 0.05);
+    color: var(--ink); font: 500 16px var(--font-ui); text-align: center; letter-spacing: 0.04em;
+  }
+  .lock-form input[type="password"]:focus { outline: none; border-color: color-mix(in srgb, var(--focus) 60%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 18%, transparent); }
+  .lock-form button {
+    height: 46px; border-radius: 23px; border: 0; cursor: pointer;
+    font: 600 14.5px var(--font-ui); color: var(--void);
+    background: radial-gradient(circle at 30% 25%, #fff, var(--star) 60%); box-shadow: 0 0 18px rgba(255, 241, 207, 0.45);
+  }
+  .lock-form button:disabled { opacity: 0.65; cursor: progress; }
+  .lock-error { min-height: 1.5em; color: #ffaaaa !important; font-size: 13.5px !important; }
+  .lock-card .lock-hint { font-size: 12px; color: var(--muted); max-width: 30ch; }
+  .lock.shake .lock-card { animation: lock-shake 0.35s; }
+  @keyframes lock-shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
+  @media (prefers-reduced-motion: reduce) { .lock.shake .lock-card { animation: none; } }
+
+  /* ---------- small screens ---------- */
+  @media (max-width: 760px) {
+    :root { --panel-w: 100%; }
+    .hud-top { display: contents; }
+    .brand { position: absolute; top: 16px; left: 16px; width: calc(100% - 32px); min-width: 0; padding: 12px 14px; }
+    .brand h1 { font-size: 17px; }
+    .brand .sub { display: none; }
+    .controls { position: absolute; top: auto; bottom: 108px; right: 16px; left: 16px; justify-content: space-between; margin-left: 0; }
+    .app.panel-open .controls { display: none; }
+    .search { flex: 1 1 180px; }
+    .results { top: auto; bottom: 44px; }
+    .key { display: none; }
+    .app.panel-open .legend { display: none; }
+    .panel { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; height: 66%; }
+    .app-mode .brand { top: calc(16px + env(safe-area-inset-top, 0px)); }
+    .app-mode .controls { bottom: calc(108px + env(safe-area-inset-bottom, 0px)); }
+    .app-mode .panel { top: auto; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); height: 68%; }
+    .hint { display: none; }
+    .index { padding-top: 120px; padding-bottom: 180px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <canvas class="layer" id="bg" aria-hidden="true"></canvas>
+  <canvas class="layer" id="sky" tabindex="0" aria-label="Map of the vault as a galaxy of planets. Use the search box or the Index view to reach any note by keyboard."></canvas>
+  <canvas class="layer" id="fx" aria-hidden="true"></canvas>
+
+  <div class="hud-top">
+  <header class="brand surface">
+    <p class="label" id="updated">Updated</p>
+    <h1>Second Brain Atlas</h1>
+    <p class="sub">Every planet is a note. Every line is a reason two ideas belong together, from calculus papers to black holes, backtests and ventures.</p>
+    <p class="stats" id="stats"></p>
+    <div class="app-tools" id="app-tools" hidden>
+      <button class="pill" id="offline-btn" type="button" aria-expanded="false" aria-controls="offline-pop"><span class="state-dot" id="offline-dot"></span><span id="offline-text">Offline</span></button>
+      <button class="pill primary" id="install-btn" type="button" hidden>Install app</button>
+    </div>
+  </header>
+
+  <div class="controls">
+    <div class="search">
+      <input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="Search notes" aria-label="Search notes" aria-controls="results" aria-expanded="false">
+      <kbd aria-hidden="true">/</kbd>
+      <ul class="results surface" id="results" role="listbox" hidden></ul>
+    </div>
+    <div class="views surface" role="group" aria-label="View">
+      <button id="v-sky" type="button" aria-pressed="true">Galaxy</button>
+      <button id="v-orbits" type="button" aria-pressed="false">Orbits</button>
+      <button id="v-index" type="button" aria-pressed="false">Index</button>
+    </div>
+  </div>
+  </div>
+
+  <section class="index" id="index" hidden aria-label="All notes by area"><div class="index-grid" id="index-grid"></div></section>
+
+  <div class="legend">
+    <div class="key surface" aria-label="Planet size shows how many connections a note has">
+      <span class="label">Size = connections</span>
+      <span class="scale" id="mag-scale"></span>
+    </div>
+    <nav class="chips" id="chips" aria-label="Show or hide areas"></nav>
+  </div>
+
+  <p class="hint" id="hint">Drag to pan · Scroll to zoom · Click a planet to open it</p>
+
+  <aside class="panel surface" id="panel" hidden aria-labelledby="p-title">
+    <button class="close" id="p-close" type="button" aria-label="Close note">×</button>
+    <header>
+      <div class="head">
+        <span class="planet big" id="p-dot"></span>
+        <div><div class="label where" id="p-where"></div><h2 id="p-title"></h2></div>
+      </div>
+      <div class="meta" id="p-meta"></div>
+      <div class="actions"><button id="p-paper" type="button" hidden>View paper</button><a id="p-obsidian" href="#">Open in Obsidian</a><button id="p-focus" type="button">Center on map</button></div>
+    </header>
+    <div class="body" id="p-body"></div>
+  </aside>
+
+  <div class="offline-pop surface" id="offline-pop" hidden role="dialog" aria-labelledby="op-title">
+    <p class="label" id="op-title">Offline & install</p>
+    <p class="row"><span class="state-dot" id="op-shell-dot"></span><span id="op-shell">Preparing offline mode…</span></p>
+    <p id="op-papers">Past papers: checking…</p>
+    <progress id="op-progress" max="1" value="0" hidden></progress>
+    <div class="row"><button class="pill primary" id="op-save" type="button">Save all past papers</button></div>
+    <p id="op-ios" hidden>To install on iPhone: open this page in <b>Safari</b>, tap <b>Share</b>, then <b>Add to Home Screen</b>.</p>
+  </div>
+
+  <div class="viewer" id="viewer" hidden role="dialog" aria-modal="true" aria-labelledby="vw-title">
+    <div class="viewer-bar surface">
+      <button class="pill" id="vw-close" type="button">← Back</button>
+      <div class="vt"><b id="vw-title"></b><span class="label" id="vw-count"></span></div>
+      <button class="pill" id="vw-invert" type="button" aria-pressed="false">Dark pages</button>
+    </div>
+    <div class="pages" id="vw-pages"></div>
+  </div>
+
+  <div class="tip surface" id="tip" hidden></div>
+
+  <div class="lock" id="lock" hidden>
+    <div class="lock-card surface" role="dialog" aria-labelledby="lock-title">
+      <span class="planet hero" aria-hidden="true"></span>
+      <h1 id="lock-title">Second Brain</h1>
+      <p>Enter your code to open your notes.</p>
+      <form class="lock-form" id="lock-form">
+        <input class="user" type="text" name="username" autocomplete="username" value="second-brain" tabindex="-1" aria-hidden="true">
+        <input id="lock-code" name="password" type="password" autocomplete="current-password" placeholder="Your code" aria-label="Your code" required minlength="12" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <button id="lock-go" type="submit">Unlock</button>
+      </form>
+      <p class="lock-error" id="lock-error" role="alert"></p>
+      <p class="lock-hint">Your notes stay encrypted until you unlock. The app locks again when you close it.</p>
+    </div>
+  </div>
+</div>
+
+<script id="atlas-data" type="application/json"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script>
+function boot(DATA) {
+  const FAMS = DATA.families;
+  const famLabel = Object.fromEntries(FAMS.map(f => [f.id, f.label]));
+  famLabel.core = "Home & North Stars";
+  const FAM_IDS = [...FAMS.map(f => f.id), "core"];
+  const nodes = DATA.nodes.map((n, i) => Object.assign(n, { i }));
+  const links = DATA.edges.map(([s, t, k]) => ({ source: s, target: t, k }));
+  const N = nodes.length;
+  const nbrs = nodes.map(() => new Set());
+  const inLinks = nodes.map(() => []);
+  const outLinks = nodes.map(() => []);
+  links.forEach(l => { nbrs[l.source].add(l.target); nbrs[l.target].add(l.source); inLinks[l.target].push(l); outLinks[l.source].push(l); });
+  const titleIndex = new Map(nodes.map(n => [n.t.toLowerCase(), n.i]));
+  const rad = n => 2.8 + 1.35 * Math.sqrt(n.d);
+  const isHub = n => n.f === "core" || n.ty === "moc" || n.ty === "home" || n.ty === "goal";
+  const ringed = n => isHub(n) && n.f !== "core";
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const famMembers = Object.fromEntries(FAM_IDS.map(id => [id, nodes.filter(n => n.f === id)]));
+  const APP_MODE = document.documentElement.classList.contains("app-mode");
+  const paperIndex = new Map(nodes.filter(n => n.pg).map(n => [n.t.toLowerCase(), n.i]));
+  const pageUrl = (n, j) => `papers/${n.pp}/${String(j).padStart(2, "0")}.png`;
+
+  // ---------- colours (read once: single dark theme) ----------
+  const cs = getComputedStyle(document.documentElement);
+  const cssVar = name => cs.getPropertyValue(name).trim();
+  const hexRgb = hex => {
+    const h = (hex || "#cccccc").replace("#", "");
+    const v = h.length === 3 ? [...h].map(c => c + c).join("") : h;
+    return [0, 2, 4].map(i => parseInt(v.slice(i, i + 2), 16));
+  };
+  const mixRgb = (a, b, t) => a.map((x, i) => Math.round(x + (b[i] - x) * t));
+  const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+  const WHITE = [255, 255, 255], BLACK = [0, 0, 0];
+  const FAM_RGB = Object.fromEntries(FAM_IDS.map(id => [id, hexRgb(cssVar(`--fam-${id}`))]));
+  const STAR = hexRgb(cssVar("--star"));
+  const INK = cssVar("--ink"), INK2 = cssVar("--ink-2");
+  const FONT_UI = cssVar("--font-ui"), FONT_DISPLAY = cssVar("--font-display");
+  const HALO = "rgba(5, 6, 15, 0.86)";
+
+  // ---------- planet sprites: lit sphere + additive halo, one pair per area ----------
+  const SPRITE = 128;
+  function bodySprite(c) {
+    const cv = document.createElement("canvas"); cv.width = cv.height = SPRITE;
+    const g = cv.getContext("2d"), m = SPRITE / 2, r = m - 3;
+    const grad = g.createRadialGradient(m - r * 0.38, m - r * 0.42, r * 0.04, m, m, r);
+    grad.addColorStop(0, rgba(mixRgb(c, WHITE, 0.8), 1));
+    grad.addColorStop(0.3, rgba(mixRgb(c, WHITE, 0.28), 1));
+    grad.addColorStop(0.68, rgba(c, 1));
+    grad.addColorStop(1, rgba(mixRgb(c, BLACK, 0.62), 1));
+    g.fillStyle = grad; g.beginPath(); g.arc(m, m, r, 0, 2 * Math.PI); g.fill();
+    const rim = g.createLinearGradient(0, 0, SPRITE, SPRITE);
+    rim.addColorStop(0, rgba(mixRgb(c, WHITE, 0.6), 0.9)); rim.addColorStop(0.5, rgba(c, 0.15)); rim.addColorStop(1, rgba(c, 0));
+    g.lineWidth = SPRITE * 0.03; g.strokeStyle = rim; g.stroke();
+    return cv;
+  }
+  function glowSprite(c, strength) {
+    const cv = document.createElement("canvas"); cv.width = cv.height = SPRITE;
+    const g = cv.getContext("2d"), m = SPRITE / 2;
+    const lc = mixRgb(c, WHITE, 0.25);
+    const grad = g.createRadialGradient(m, m, 0, m, m, m);
+    grad.addColorStop(0, rgba(lc, 0.6 * strength));
+    grad.addColorStop(0.18, rgba(lc, 0.3 * strength));
+    grad.addColorStop(0.45, rgba(lc, 0.085 * strength));
+    grad.addColorStop(1, rgba(lc, 0));
+    g.fillStyle = grad; g.fillRect(0, 0, SPRITE, SPRITE);
+    return cv;
+  }
+  const SPR = Object.fromEntries(FAM_IDS.map(id => [id, { body: bodySprite(FAM_RGB[id]), glow: glowSprite(FAM_RGB[id], id === "code" ? 1.4 : 1) }]));
+  const photonSprite = glowSprite(STAR, 1.5);
+
+  // ---------- layout: galaxy (force) ----------
+  const famOrder = Object.fromEntries(FAMS.map((f, k) => [f.id, k]));
+  const angleOf = f => -Math.PI / 2 + (2 * Math.PI * famOrder[f]) / FAMS.length;
+  const anchor = n => n.f === "core" ? { x: 0, y: 0 } : { x: 560 * Math.cos(angleOf(n.f)), y: 560 * Math.sin(angleOf(n.f)) };
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+  nodes.forEach(n => { const a = anchor(n); n.x = a.x + (rnd() - 0.5) * 260; n.y = a.y + (rnd() - 0.5) * 260; });
+  const sim = d3.forceSimulation(nodes)
+    .randomSource(rnd)
+    .force("link", d3.forceLink(links).distance(l => 26 + 4.5 * Math.sqrt(Math.min(l.source.d, l.target.d)))
+      .strength(l => 0.7 / Math.min(nbrs[l.source.i].size, nbrs[l.target.i].size)))
+    .force("charge", d3.forceManyBody().strength(n => -18 - 1.9 * n.d).distanceMax(650))
+    .force("collide", d3.forceCollide(n => rad(n) * (ringed(n) ? 2.2 : 1) + 2))
+    .force("ax", d3.forceX(n => anchor(n).x).strength(n => n.f === "core" ? 0.16 : 0.075))
+    .force("ay", d3.forceY(n => anchor(n).y).strength(n => n.f === "core" ? 0.16 : 0.075))
+    .stop();
+  for (let t = 0; t < 340; t++) sim.tick();
+  nodes.forEach(n => { n.px = n.x; n.py = n.y; });
+  const linksByFam = Object.fromEntries(FAM_IDS.map(id => [id, []]));
+  links.forEach(l => linksByFam[l.source.f].push(l));
+
+  // ---------- layout: orbits (radial tree by folder) ----------
+  const multiFolder = { build: true, personal: true, code: true };
+  const treeRoot = { name: "root", children: [] };
+  const famNodes = {};
+  FAMS.forEach(f => { famNodes[f.id] = { name: f.label, fam: f.id, children: [] }; treeRoot.children.push(famNodes[f.id]); });
+  nodes.filter(n => n.f !== "core").forEach(n => {
+    let cur = famNodes[n.f];
+    const segs = multiFolder[n.f] ? n.h : n.h.slice(1);
+    segs.forEach(seg => {
+      let next = cur.children.find(c => c.name === seg && c.children);
+      if (!next) { next = { name: seg, fam: n.f, children: [] }; cur.children.push(next); }
+      cur = next;
+    });
+    cur.children.push({ name: n.t, node: n.i });
+  });
+  const R = 900;
+  const hier = d3.hierarchy(treeRoot).sort((a, b) => (a.data.node === undefined) - (b.data.node === undefined) || d3.ascending(a.data.name, b.data.name));
+  hier.children.sort((a, b) => famOrder[a.data.fam] - famOrder[b.data.fam]);
+  d3.cluster().size([2 * Math.PI, R]).separation((a, b) => (a.parent === b.parent ? 1 : 2.2))(hier);
+  const polar = (x, y) => [y * Math.sin(x), -y * Math.cos(x)];
+  const treeLinks = hier.links().filter(l => l.source.depth > 0);
+  const folderLabels = [];
+  hier.each(d => {
+    const [x, y] = polar(d.x, d.depth === 0 ? 0 : d.depth === 1 ? R * 0.34 : d.data.node !== undefined ? R : R * (0.34 + 0.2 * (d.depth - 1)));
+    d.ox = x; d.oy = y;
+    if (d.data.node !== undefined) { nodes[d.data.node].ox = x; nodes[d.data.node].oy = y; }
+    else if (d.depth === 1) folderLabels.push({ text: d.data.name, fam: d.data.fam, x, y, a: d.x });
+  });
+  hier.each(d => { if (d.depth > 1 && d.data.node === undefined) { d.y = R * (0.34 + 0.2 * (d.depth - 1)); } else if (d.depth === 1) { d.y = R * 0.34; } });
+  const core = nodes.filter(n => n.f === "core");
+  core.forEach((n, k) => {
+    if (n.t === "Home") { n.ox = 0; n.oy = 0; return; }
+    const a = (2 * Math.PI * k) / core.length;
+    n.ox = 110 * Math.cos(a); n.oy = 110 * Math.sin(a);
+  });
+
+  // ---------- state ----------
+  const app = document.getElementById("app");
+  const bg = document.getElementById("bg"), canvas = document.getElementById("sky"), fx = document.getElementById("fx");
+  const bctx = bg.getContext("2d"), ctx = canvas.getContext("2d"), fctx = fx.getContext("2d");
+  let W = 0, H = 0, dpr = 1;
+  let view = "sky";
+  let transform = d3.zoomIdentity;
+  let hovered = null, selected = null;
+  const hidden = new Set();
+  let query = "", matches = null;
+  let animating = false;
+  let photons = [];
+  let opened = false;  // first layout waits for a real screen size (installed apps can start at 0×0)
+  const visible = n => !hidden.has(n.f);
+
+  // ---------- starfield (parallax layers, a few twinkle) ----------
+  const TILE = 900;
+  let starSeed = 11;
+  const srnd = () => ((starSeed = (starSeed * 16807) % 2147483647) - 1) / 2147483646;
+  const TINTS = ["#ffffff", "#cfdcff", "#ffe6c7"];
+  const makeLayer = (count, r0, r1, a0, a1, par, twinkle) => ({
+    par,
+    stars: Array.from({ length: count }, () => ({
+      x: srnd() * TILE, y: srnd() * TILE, r: r0 + srnd() * (r1 - r0), a: a0 + srnd() * (a1 - a0),
+      tint: srnd() < 0.72 ? 0 : srnd() < 0.6 ? 1 : 2, tw: twinkle && srnd() < 0.55, sp: 0.6 + srnd() * 1.6, ph: srnd() * 6.28,
+    })).sort((p, q) => p.tint - q.tint),
+  });
+  const STAR_LAYERS = [makeLayer(420, 0.45, 0.95, 0.18, 0.55, 0.035, false), makeLayer(110, 0.8, 1.5, 0.45, 0.9, 0.08, true), makeLayer(16, 1.5, 2.2, 0.75, 1, 0.13, true)];
+  function drawBg(t) {
+    bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    bctx.clearRect(0, 0, W, H);
+    STAR_LAYERS.forEach((L, li) => {
+      const ox = ((transform.x * L.par) % TILE + TILE) % TILE, oy = ((transform.y * L.par) % TILE + TILE) % TILE;
+      let tint = -1;
+      for (const s of L.stars) {
+        if (s.tint !== tint) { tint = s.tint; bctx.fillStyle = TINTS[tint]; }
+        let a = s.a;
+        if (s.tw && !reduceMotion) a *= 0.55 + 0.45 * Math.sin(t * s.sp + s.ph);
+        bctx.globalAlpha = a;
+        for (let x = (s.x + ox) % TILE - TILE; x < W + 2; x += TILE) {
+          if (x < -3) continue;
+          for (let y = (s.y + oy) % TILE - TILE; y < H + 2; y += TILE) {
+            if (y < -3) continue;
+            if (li === 2) {
+              // bright stars: a soft dot with a faint four-point sparkle
+              bctx.beginPath(); bctx.arc(x, y, s.r, 0, 2 * Math.PI); bctx.fill();
+              bctx.globalAlpha = a * 0.35;
+              bctx.fillRect(x - s.r * 4, y - 0.35, s.r * 8, 0.7); bctx.fillRect(x - 0.35, y - s.r * 4, 0.7, s.r * 8);
+              bctx.globalAlpha = a;
+            } else bctx.fillRect(x - s.r / 2, y - s.r / 2, s.r, s.r);
+          }
+        }
+      }
+    });
+    bctx.globalAlpha = 1;
+  }
+
+  // ---------- drawing: map ----------
+  let frame = 0;
+  const request = () => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; draw(); }); };
+  const nebulaSeed = FAM_IDS.map((_, j) => [0.9 + j * 0.7, 2.6 + j * 1.13]);
+
+  function blob(x, y, r, c, a) {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, rgba(c, a)); g.addColorStop(0.5, rgba(c, a * 0.42)); g.addColorStop(1, rgba(c, 0));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill();
+  }
+  function drawNebulae(dim) {
+    ctx.globalCompositeOperation = "lighter";
+    FAMS.forEach((f, j) => {
+      if (hidden.has(f.id)) return;
+      const ms = famMembers[f.id];
+      if (!ms.length) return;
+      let sx = 0, sy = 0;
+      ms.forEach(n => { sx += n.px; sy += n.py; });
+      const cx = sx / ms.length, cy = sy / ms.length;
+      let s2 = 0;
+      ms.forEach(n => { s2 += (n.px - cx) ** 2 + (n.py - cy) ** 2; });
+      const rms = Math.max(60, Math.sqrt(s2 / ms.length));
+      const c = mixRgb(FAM_RGB[f.id], WHITE, 0.08);
+      const a = dim ? 0.45 : 1;
+      const [a1, a2] = nebulaSeed[j];
+      blob(cx, cy, rms * 1.4, c, 0.14 * a);
+      blob(cx + Math.cos(a1) * rms * 0.55, cy + Math.sin(a1) * rms * 0.55, rms * 0.9, c, 0.08 * a);
+      blob(cx + Math.cos(a2) * rms * 0.65, cy + Math.sin(a2) * rms * 0.65, rms * 0.7, c, 0.055 * a);
+    });
+    ctx.globalCompositeOperation = "source-over";
+  }
+  function drawOrbitGuides(k) {
+    ctx.save();
+    ctx.setLineDash([1.5 / k, 7 / k]);
+    ctx.lineWidth = 1 / k;
+    ctx.strokeStyle = "rgba(214, 222, 255, 0.17)";
+    [R * 0.34, R * 0.54, R * 0.74, R].forEach(r => { ctx.beginPath(); ctx.arc(0, 0, r, 0, 2 * Math.PI); ctx.stroke(); });
+    ctx.restore();
+    if (animating) return;
+    ctx.strokeStyle = "rgba(214, 222, 255, 0.07)";
+    ctx.lineWidth = 1 / k;
+    const radialLink = d3.linkRadial().angle(d => d.x).radius(d => d.y).context(ctx);
+    ctx.beginPath();
+    treeLinks.forEach(l => {
+      const leaf = l.target.data.node !== undefined ? nodes[l.target.data.node] : null;
+      if (leaf && !visible(leaf)) return;
+      if (!leaf && hidden.has(l.target.data.fam)) return;
+      radialLink(l);
+    });
+    ctx.stroke();
+  }
+  function drawLinks(k, focus, dim) {
+    if (view === "sky") {
+      ctx.globalCompositeOperation = "lighter";
+      ctx.lineWidth = 0.9 / k;
+      const a = dim ? 0.035 : 0.11;
+      for (const id of FAM_IDS) {
+        if (hidden.has(id)) continue;
+        ctx.strokeStyle = rgba(mixRgb(FAM_RGB[id], WHITE, 0.22), a);
+        ctx.beginPath();
+        for (const l of linksByFam[id]) {
+          if (!visible(l.target)) continue;
+          ctx.moveTo(l.source.px, l.source.py); ctx.lineTo(l.target.px, l.target.py);
+        }
+        ctx.stroke();
+      }
+      ctx.globalCompositeOperation = "source-over";
+    }
+    if (focus === null || !visible(nodes[focus])) return;
+    const f = nodes[focus];
+    ctx.globalCompositeOperation = "lighter";
+    ctx.lineWidth = 1.5 / k;
+    for (const j of nbrs[focus]) {
+      const o = nodes[j];
+      if (!visible(o)) continue;
+      const g = ctx.createLinearGradient(f.px, f.py, o.px, o.py);
+      g.addColorStop(0, rgba(mixRgb(FAM_RGB[f.f], WHITE, 0.35), 0.85));
+      g.addColorStop(1, rgba(mixRgb(FAM_RGB[o.f], WHITE, 0.35), 0.5));
+      ctx.strokeStyle = g;
+      ctx.beginPath(); ctx.moveTo(f.px, f.py); ctx.lineTo(o.px, o.py); ctx.stroke();
+    }
+    ctx.globalCompositeOperation = "source-over";
+  }
+  function ring(n, r, k, back) {
+    const c = mixRgb(FAM_RGB[n.f], WHITE, 0.45);
+    const from = back ? Math.PI : 0, to = back ? 2 * Math.PI : Math.PI;
+    ctx.lineWidth = Math.max(r * 0.17, 0.8 / k);
+    ctx.strokeStyle = rgba(c, 0.78);
+    ctx.beginPath(); ctx.ellipse(n.px, n.py, r * 2.05, r * 0.6, -0.4, from, to); ctx.stroke();
+    ctx.lineWidth = Math.max(r * 0.06, 0.5 / k);
+    ctx.strokeStyle = rgba(c, 0.38);
+    ctx.beginPath(); ctx.ellipse(n.px, n.py, r * 2.5, r * 0.74, -0.4, from, to); ctx.stroke();
+  }
+  function drawPlanets(k, focus, focusSet) {
+    const alphaOf = n => {
+      let a = 1;
+      if (focus !== null && n.i !== focus && !focusSet.has(n.i)) a = 0.16;
+      if (matches && !matches.has(n.i)) a = Math.min(a, 0.13);
+      return a;
+    };
+    ctx.globalCompositeOperation = "lighter";
+    for (const n of nodes) {
+      if (!visible(n)) continue;
+      n._a = alphaOf(n);
+      const r = rad(n) * (n.i === hovered ? 1.28 : 1);
+      const gr = r * (n.f === "core" ? 6 : isHub(n) ? 4.4 : 3.2) * (n.i === focus ? 1.4 : 1);
+      ctx.globalAlpha = n._a * (n.i === focus ? 1 : 0.9);
+      ctx.drawImage(SPR[n.f].glow, n.px - gr, n.py - gr, gr * 2, gr * 2);
+    }
+    ctx.globalCompositeOperation = "source-over";
+    for (const n of nodes) {
+      if (!visible(n)) continue;
+      const r = rad(n) * (n.i === hovered ? 1.28 : 1);
+      ctx.globalAlpha = n._a;
+      if (ringed(n)) ring(n, r, k, true);
+      ctx.drawImage(SPR[n.f].body, n.px - r, n.py - r, r * 2, r * 2);
+      if (ringed(n)) ring(n, r, k, false);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function draw() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    if (view !== "index") {
+      const k = transform.k;
+      const focus = selected ?? hovered;
+      const focusSet = focus !== null ? nbrs[focus] : null;
+      const dim = focus !== null || !!matches;
+      ctx.save();
+      ctx.translate(transform.x, transform.y);
+      ctx.scale(k, k);
+      drawNebulae(dim);
+      if (view === "orbits") drawOrbitGuides(k);
+      drawLinks(k, focus, dim);
+      drawPlanets(k, focus, focusSet);
+      ctx.restore();
+      drawLabels(focus, focusSet);
+    }
+    drawFx(performance.now());
+    if (reduceMotion) drawBg(0);
+  }
+
+  const spaced = s => [...s].join(" ");
+  function drawLabels(focus, focusSet) {
+    const k = transform.k;
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineJoin = "round";
+    // area names, glowing in their own colour
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    const areaSize = Math.max(10.5, Math.min(15, 12.5 * Math.sqrt(k)));
+    ctx.font = `600 ${areaSize}px ${FONT_DISPLAY}`;
+    const areaPos = view === "orbits" ? folderLabels.map(f => ({ fam: f.fam, text: f.text, x: f.x, y: f.y }))
+      : FAMS.map(f => {
+        const ms = famMembers[f.id];
+        const cx = d3.mean(ms, n => n.px), cy = d3.mean(ms, n => n.py);
+        const a = Math.atan2(cy, cx), rr = Math.hypot(cx, cy) + 250;
+        return { fam: f.id, text: f.label, x: rr * Math.cos(a), y: rr * Math.sin(a) };
+      });
+    const placed = [];
+    for (const p of areaPos) {
+      if (hidden.has(p.fam)) continue;
+      const sx = transform.applyX(p.x), sy = transform.applyY(p.y);
+      const text = spaced(p.text.toUpperCase());
+      const w = ctx.measureText(text).width;
+      placed.push([sx - w / 2 - 8, sy - areaSize / 2 - 6, w + 16, areaSize + 12]);
+      const c = FAM_RGB[p.fam];
+      ctx.globalAlpha = focus !== null ? 0.3 : 0.95;
+      ctx.shadowColor = rgba(c, 0.95); ctx.shadowBlur = 16;
+      ctx.fillStyle = rgba(mixRgb(c, WHITE, 0.62), 1);
+      ctx.fillText(text, sx, sy);
+      ctx.shadowBlur = 0;
+    }
+    ctx.globalAlpha = 1;
+    // planet names
+    const cand = [];
+    const thresh = k < 0.5 ? Infinity : k < 0.9 ? 28 : k < 1.5 ? 14 : k < 2.4 ? 6 : 0;
+    for (const n of nodes) {
+      if (!visible(n)) continue;
+      let pr = -1;
+      if (n.i === focus) pr = 1000;
+      else if (focusSet && focusSet.has(n.i)) pr = 500 + n.d;
+      else if (matches && matches.has(n.i)) pr = 400 + n.d;
+      else if (focus === null && !matches && (n.f === "core" || n.d >= thresh)) pr = n.d + (isHub(n) ? 50 : 0);
+      if (pr < 0) continue;
+      const sx = transform.applyX(n.px), sy = transform.applyY(n.py);
+      if (sx < -50 || sy < -20 || sx > W + 50 || sy > H + 20) continue;
+      cand.push({ n, pr, sx, sy });
+    }
+    cand.sort((a, b) => b.pr - a.pr);
+    ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    let count = 0;
+    for (const c of cand) {
+      if (count > 140) break;
+      const strong = c.n.i === focus || isHub(c.n);
+      ctx.font = `${strong ? 600 : 500} ${strong ? 13 : 11.5}px ${FONT_UI}`;
+      const r = rad(c.n) * k * (ringed(c.n) ? 2.1 : 1);
+      const text = c.n.t.length > 46 ? c.n.t.slice(0, 44) + "…" : c.n.t;
+      const w = ctx.measureText(text).width;
+      const x = c.sx + r + 6, y = c.sy;
+      const box = [x - 2, y - 9, w + 4, 18];
+      if (c.pr < 1000 && placed.some(p => box[0] < p[0] + p[2] && box[0] + box[2] > p[0] && box[1] < p[1] + p[3] && box[1] + box[3] > p[1])) continue;
+      placed.push(box);
+      ctx.lineWidth = 3.4; ctx.strokeStyle = HALO; ctx.strokeText(text, x, y);
+      ctx.fillStyle = strong ? INK : INK2; ctx.fillText(text, x, y);
+      count++;
+    }
+    ctx.restore();
+  }
+
+  // ---------- drawing: effects (selection orbit, light travelling along links) ----------
+  function drawFx(t) {
+    fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    fctx.clearRect(0, 0, W, H);
+    if (view === "index" || selected === null || !visible(nodes[selected])) return;
+    const n = nodes[selected], k = transform.k;
+    const sx = transform.applyX(n.px), sy = transform.applyY(n.py);
+    const r = rad(n) * k;
+    fctx.save();
+    fctx.strokeStyle = rgba(STAR, 0.85); fctx.lineWidth = 1.3;
+    fctx.setLineDash([3, 5]); fctx.lineDashOffset = reduceMotion ? 0 : -t / 55;
+    fctx.beginPath(); fctx.arc(sx, sy, r + 9, 0, 2 * Math.PI); fctx.stroke();
+    fctx.setLineDash([]);
+    fctx.strokeStyle = rgba(STAR, 0.2); fctx.lineWidth = 1;
+    fctx.beginPath(); fctx.arc(sx, sy, r + 16 + (reduceMotion ? 0 : 3 * Math.sin(t / 600)), 0, 2 * Math.PI); fctx.stroke();
+    fctx.restore();
+    if (reduceMotion || animating) return;
+    fctx.globalCompositeOperation = "lighter";
+    for (const p of photons) {
+      if (!visible(p.o)) continue;
+      const u = (t / 2600 + p.ph) % 1;
+      const [ax, ay, bx, by] = p.out ? [n.px, n.py, p.o.px, p.o.py] : [p.o.px, p.o.py, n.px, n.py];
+      const x = transform.applyX(ax + (bx - ax) * u), y = transform.applyY(ay + (by - ay) * u);
+      fctx.globalAlpha = 0.95 * Math.sin(Math.PI * u);
+      fctx.drawImage(photonSprite, x - 8, y - 8, 16, 16);
+      fctx.fillStyle = "#ffffff"; fctx.fillRect(x - 0.9, y - 0.9, 1.8, 1.8);
+    }
+    fctx.globalAlpha = 1;
+    fctx.globalCompositeOperation = "source-over";
+  }
+
+  // ---------- animation loop (only when motion is welcome and the tab is visible) ----------
+  let rafId = 0, lastBg = -1e9;
+  function loop(t) {
+    if (document.hidden) { rafId = 0; return; }
+    if (t - lastBg > 40) { drawBg(t / 1000); lastBg = t; }
+    if (selected !== null && view !== "index") drawFx(t);
+    rafId = requestAnimationFrame(loop);
+  }
+  const startLoop = () => { if (!reduceMotion && !rafId && !document.hidden) rafId = requestAnimationFrame(loop); };
+  document.addEventListener("visibilitychange", startLoop);
+
+  // ---------- canvas sizing & zoom ----------
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = app.clientWidth; H = app.clientHeight;
+    [bg, canvas, fx].forEach(c => { c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); });
+    lastBg = -1e9;
+    drawBg(performance.now() / 1000);
+    if (!opened && W > 0 && H > 0) {
+      opened = true;
+      const home = nodes.find(n => n.t === "Home");
+      if (home && W > 760) select(home.i);
+      fit(false);
+    }
+    request();
+  }
+  const zoom = d3.zoom().scaleExtent([0.12, 7]).on("zoom", e => { transform = e.transform; hideTip(); request(); });
+  const sel = d3.select(canvas);
+
+  // free map space between the overlays (title, controls, legend, open panel)
+  function mapArea() {
+    const box = app.getBoundingClientRect();
+    const rel = el => { const r = el.getBoundingClientRect(); return { top: r.top - box.top, bottom: r.bottom - box.top, left: r.left - box.left }; };
+    const mobile = W <= 760;
+    const top = rel(document.querySelector(mobile ? ".brand" : ".hud-top")).bottom + 10;
+    const lowEl = mobile ? document.querySelector(".controls") : document.querySelector(".legend");
+    const bottom = Math.max(top + 120, rel(lowEl).top - 10);
+    const panelOpen = !panel.hidden && !mobile;
+    const right = panelOpen ? rel(panel).left - 10 : W;
+    return { x0: 0, y0: top, w: right, h: bottom - top };
+  }
+  function fit(animate) {
+    const vis = nodes.filter(visible);
+    if (!vis.length) return;
+    const [x0, x1] = d3.extent(vis, n => n.px), [y0, y1] = d3.extent(vis, n => n.py);
+    const area = mapArea();
+    if (area.w < 40 || area.h < 40) return;  // no room yet: keep the current view instead of zooming to nothing
+    const s = Math.min(area.w / (x1 - x0 + 220), area.h / (y1 - y0 + 140), 1.4);
+    const t = d3.zoomIdentity.translate(area.x0 + area.w / 2 - s * (x0 + x1) / 2, area.y0 + area.h / 2 - s * (y0 + y1) / 2).scale(s);
+    (animate && !reduceMotion ? sel.transition().duration(650) : sel).call(zoom.transform, t);
+  }
+  function centerOn(n) {
+    const area = mapArea();
+    const s = Math.max(transform.k, 1.1);
+    const t = d3.zoomIdentity.translate(area.x0 + area.w / 2 - s * n.px, area.y0 + area.h / 2 - s * n.py).scale(s);
+    (reduceMotion ? sel : sel.transition().duration(600)).call(zoom.transform, t);
+  }
+
+  // ---------- hit testing ----------
+  function nodeAt(mx, my) {
+    const [wx, wy] = transform.invert([mx, my]);
+    let best = null, bestD = Infinity;
+    for (const n of nodes) {
+      if (!visible(n)) continue;
+      const d = Math.hypot(n.px - wx, n.py - wy);
+      const r = rad(n) + 6 / transform.k;
+      if (d < r && d < bestD) { best = n; bestD = d; }
+    }
+    return best;
+  }
+
+  // drag planets in the galaxy view (registered before zoom so it wins over panning)
+  const drag = d3.drag()
+    .subject(e => { if (view !== "sky") return null; const n = nodeAt(e.x, e.y); return n ? { x: transform.applyX(n.px), y: transform.applyY(n.py), n } : null; })
+    .on("start", e => { const n = e.subject.n; n.fx = n.x; n.fy = n.y; sim.alphaTarget(0.18).restart(); })
+    .on("drag", e => { const [wx, wy] = transform.invert([e.x, e.y]); const n = e.subject.n; n.fx = wx; n.fy = wy; })
+    .on("end", e => { const n = e.subject.n; n.fx = null; n.fy = null; sim.alphaTarget(0); });
+  sim.on("tick", () => { if (view === "sky" && !animating) { nodes.forEach(n => { n.px = n.x; n.py = n.y; }); request(); } });
+  sel.call(drag).call(zoom).on("dblclick.zoom", null);
+
+  // ---------- tooltip ----------
+  const tip = document.getElementById("tip");
+  function showTip(n, mx, my) {
+    tip.innerHTML = "";
+    const t = document.createElement("div"); t.className = "t";
+    const p = document.createElement("span"); p.className = "planet"; p.style.setProperty("--c", `var(--fam-${n.f})`);
+    const s = document.createElement("span"); s.textContent = n.t;
+    t.append(p, s);
+    const m = document.createElement("div"); m.className = "m"; m.textContent = `${famLabel[n.f]} · ${n.ty} · ${n.d} connections`;
+    tip.append(t, m);
+    tip.hidden = false;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    tip.style.left = `${Math.min(mx + 16, W - tw - 8)}px`;
+    tip.style.top = `${Math.min(my + 16, H - th - 8)}px`;
+  }
+  function hideTip() { tip.hidden = true; }
+
+  canvas.addEventListener("pointermove", e => {
+    if (e.pointerType === "touch" || view === "index") return;
+    const r = canvas.getBoundingClientRect();
+    const n = nodeAt(e.clientX - r.left, e.clientY - r.top);
+    const id = n ? n.i : null;
+    canvas.classList.toggle("is-hovering", !!n);
+    if (id !== hovered) { hovered = id; request(); }
+    if (n) showTip(n, e.clientX - r.left, e.clientY - r.top); else hideTip();
+  });
+  canvas.addEventListener("pointerleave", () => { hovered = null; hideTip(); request(); });
+  canvas.addEventListener("click", e => {
+    const r = canvas.getBoundingClientRect();
+    const n = nodeAt(e.clientX - r.left, e.clientY - r.top);
+    if (n) select(n.i, { center: false });
+    else if (selected !== null && W <= 760) closePanel();
+  });
+
+  // ---------- note panel ----------
+  const panel = document.getElementById("panel");
+  const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  function toHtml(md) {
+    md = md.replace(/<!--[\s\S]*?-->/g, "");
+    md = md.replace(/!?\[\[([^\]]+?\.pdf)(?:#page=(\d+))?(?:\\?\|([^\]]+))?\]\]/gi, (_, file, page, alias) => {
+      const stem = file.split("/").pop().replace(/\.pdf$/i, "").trim();
+      const idx = paperIndex.get(stem.toLowerCase());
+      if (idx === undefined) return `<span class="ghost">${esc((alias || file.split("/").pop()).trim())}</span>`;
+      return `<a href="#" data-paper="${idx}" data-page="${page || 1}">📄 ${esc((alias || (page ? `Page ${page}` : "View paper")).trim())}</a>`;
+    });
+    md = md.replace(/!\[\[([^\]]+?)\]\]/g, (_, inner) => {
+      const target = inner.split("|")[0].replace(/\\$/, "");
+      const [name, section] = target.split("#");
+      const idx = titleIndex.get(name.trim().toLowerCase());
+      if (idx === undefined) return "`" + target + "`";
+      return `<a href="#" data-node="${idx}">↳ ${esc(name.trim())}${section ? " › " + esc(section.trim()) : ""}</a>`;
+    });
+    md = md.replace(/\[\[([^\]]+?)\]\]/g, (_, inner) => {
+      inner = inner.replace(/\\\|/g, "|");
+      const [target, alias] = inner.split("|");
+      const name = target.split("#")[0].trim();
+      const label = esc((alias || target.split("#")[0]).trim());
+      const idx = titleIndex.get(name.toLowerCase());
+      return idx === undefined ? `<span class="ghost">${label}</span>` : `<a href="#" data-node="${idx}">${label}</a>`;
+    });
+    let html = marked.parse(md, { gfm: true, breaks: false });
+    html = html.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<table>/g, '<div class="tablewrap"><table>').replace(/<\/table>/g, "</table></div>");
+    return html;
+  }
+  function select(i, opts = {}) {
+    selected = i;
+    const n = nodes[i];
+    document.getElementById("p-dot").style.setProperty("--c", `var(--fam-${n.f})`);
+    document.getElementById("p-where").textContent = [famLabel[n.f], ...n.h.slice(-2)].join(" / ");
+    document.getElementById("p-title").textContent = n.t;
+    const meta = document.getElementById("p-meta");
+    meta.innerHTML = "";
+    [n.ty, `${n.d} connections`, ...n.tg.slice(0, 5)].forEach(t => { const s = document.createElement("span"); s.className = "tag"; s.textContent = t; meta.append(s); });
+    document.getElementById("p-obsidian").href = `obsidian://open?vault=SecondBrain&file=${encodeURIComponent(n.p.replace(/\.md$/, ""))}`;
+    const paperBtn = document.getElementById("p-paper");
+    paperBtn.hidden = !n.pg;
+    if (n.pg) { paperBtn.textContent = `View paper · ${n.pg} page${n.pg > 1 ? "s" : ""}`; paperBtn.dataset.paper = i; paperBtn.dataset.page = 1; }
+    const body = document.getElementById("p-body");
+    body.innerHTML = `<div class="md">${toHtml(n.c)}</div>`;
+    const backs = inLinks[i].filter(l => visible(nodes[l.source.i ?? l.source]));
+    if (backs.length) {
+      const wrap = document.createElement("div"); wrap.className = "backlinks";
+      const h = document.createElement("p"); h.className = "label"; h.textContent = `Linked from · ${backs.length}`;
+      const ol = document.createElement("ol");
+      backs.sort((a, b) => nodes[b.source.i ?? b.source].d - nodes[a.source.i ?? a.source].d).slice(0, 60).forEach(l => {
+        const src = nodes[l.source.i ?? l.source];
+        const li = document.createElement("li");
+        const p = document.createElement("span"); p.className = "planet"; p.style.setProperty("--c", `var(--fam-${src.f})`);
+        const b = document.createElement("button"); b.type = "button"; b.dataset.node = src.i; b.textContent = src.t;
+        const why = document.createElement("span"); why.className = "why"; why.textContent = l.k >= 0 ? DATA.ctx[l.k] : "";
+        li.append(p, b, why); ol.append(li);
+      });
+      wrap.append(h, ol); body.append(wrap);
+    }
+    body.scrollTop = 0;
+    // light pulses: outgoing links flow away from the planet, backlinks flow toward it
+    const seen = new Set();
+    photons = [];
+    [...outLinks[i].map(l => ({ o: l.target.i === undefined ? nodes[l.target] : l.target, out: true })),
+     ...inLinks[i].map(l => ({ o: l.source.i === undefined ? nodes[l.source] : l.source, out: false }))]
+      .filter(p => { const key = `${p.o.i}:${p.out}`; if (seen.has(key)) return false; seen.add(key); return true; })
+      .sort((a, b) => b.o.d - a.o.d).slice(0, 48)
+      .forEach((p, j) => photons.push({ ...p, ph: (j * 0.618) % 1 }));
+    const wasHidden = panel.hidden;
+    panel.hidden = false;
+    app.classList.add("panel-open");
+    if (opts.center && view !== "index") centerOn(n);
+    else if (wasHidden && view !== "index" && opts.fitIfOpened) fit(true);
+    request();
+  }
+  function closePanel() {
+    panel.hidden = true; selected = null; photons = []; app.classList.remove("panel-open"); request();
+  }
+  document.getElementById("p-close").addEventListener("click", closePanel);
+  document.getElementById("p-focus").addEventListener("click", () => { if (selected !== null) { if (view === "index") setView("sky"); centerOn(nodes[selected]); } });
+  panel.addEventListener("click", e => {
+    const pp = e.target.closest("[data-paper]");
+    if (pp) { e.preventDefault(); openViewer(+pp.dataset.paper, +pp.dataset.page || 1); return; }
+    const a = e.target.closest("[data-node]");
+    if (!a) return;
+    e.preventDefault();
+    select(+a.dataset.node, { center: view !== "index" });
+  });
+
+  // ---------- past-paper viewer ----------
+  const viewer = document.getElementById("viewer");
+  let viewerReturn = null;
+  function openViewer(i, page = 1) {
+    const n = nodes[i];
+    if (!n || !n.pg) return;
+    viewerReturn = document.activeElement;
+    document.getElementById("vw-title").textContent = n.t;
+    document.getElementById("vw-count").textContent = `${n.pg} page${n.pg > 1 ? "s" : ""}`;
+    const box = document.getElementById("vw-pages");
+    box.innerHTML = "";
+    for (let j = 1; j <= n.pg; j++) {
+      const img = document.createElement("img");
+      img.src = pageUrl(n, j); img.alt = `Page ${j} of ${n.t}`; img.id = `vw-p${j}`;
+      img.loading = Math.abs(j - page) <= 1 ? "eager" : "lazy"; img.decoding = "async";
+      box.append(img);
+    }
+    viewer.hidden = false;
+    requestAnimationFrame(() => { const t = document.getElementById(`vw-p${page}`); if (t) t.scrollIntoView({ block: "start" }); });
+    document.getElementById("vw-close").focus();
+  }
+  function closeViewer() { viewer.hidden = true; document.getElementById("vw-pages").innerHTML = ""; if (viewerReturn) viewerReturn.focus(); }
+  document.getElementById("vw-close").addEventListener("click", closeViewer);
+  const invertBtn = document.getElementById("vw-invert");
+  const setInvert = on => { viewer.classList.toggle("inverted", on); invertBtn.setAttribute("aria-pressed", String(on)); try { localStorage.setItem("sb-invert", on ? "1" : "0"); } catch (e) {} };
+  try { setInvert(localStorage.getItem("sb-invert") === "1"); } catch (e) {}
+  invertBtn.addEventListener("click", () => setInvert(!viewer.classList.contains("inverted")));
+
+  // ---------- installed app: offline status, saving papers, install ----------
+  const PAPER_CACHE = "sb-papers-v1";
+  const allPages = () => nodes.filter(n => n.pg).flatMap(n => Array.from({ length: n.pg }, (_, j) => pageUrl(n, j + 1)));
+  const mb = b => `${(b / 1e6).toFixed(b > 1e7 ? 0 : 1)} MB`;
+  async function countSaved(urls) {
+    if (!("caches" in window)) return 0;
+    const c = await caches.open(PAPER_CACHE);
+    const have = new Set((await c.keys()).map(r => new URL(r.url).pathname));
+    return urls.filter(u => have.has(new URL(u, location.href).pathname)).length;
+  }
+  async function refreshOffline() {
+    const ready = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
+    document.getElementById("offline-dot").classList.toggle("ok", ready);
+    document.getElementById("op-shell-dot").classList.toggle("ok", ready);
+    document.getElementById("offline-text").textContent = ready ? "Works offline" : "Offline";
+    document.getElementById("op-shell").innerHTML = ready ? "<b>Notes and map work offline</b> on this device." : "Preparing offline mode… keep the app open for a moment.";
+    const urls = allPages();
+    const save = document.getElementById("op-save");
+    if (!urls.length) { document.getElementById("op-papers").textContent = "No past papers in this build."; save.hidden = true; return; }
+    const have = await countSaved(urls);
+    const done = have === urls.length;
+    document.getElementById("op-papers").innerHTML = done ? `<b>All ${urls.length} past-paper pages are saved</b> for offline reading.`
+      : `Past papers: <b>${have} of ${urls.length} pages</b> saved. Pages you open are saved automatically.`;
+    save.hidden = done;
+    save.textContent = `Save all past papers (${mb(DATA.papersBytes || 0)})`;
+  }
+  async function saveAllPapers() {
+    const urls = allPages(), bar = document.getElementById("op-progress"), save = document.getElementById("op-save");
+    const c = await caches.open(PAPER_CACHE);
+    let done = 0;
+    bar.hidden = false; save.disabled = true;
+    const queue = urls.slice();
+    const worker = async () => {
+      while (queue.length) {
+        const u = queue.shift();
+        try { if (!(await c.match(u))) { const r = await fetch(u); if (r.ok) await c.put(u, r); } } catch (e) { /* offline: skipped, retried next time */ }
+        done++; bar.value = done / urls.length;
+        document.getElementById("op-papers").innerHTML = `Saving past papers… <b>${done} of ${urls.length}</b>`;
+      }
+    };
+    await Promise.all(Array.from({ length: 6 }, worker));
+    bar.hidden = true; save.disabled = false;
+    refreshOffline();
+  }
+  function setupApp() {
+    document.getElementById("app-tools").hidden = false;
+    const pop = document.getElementById("offline-pop"), btn = document.getElementById("offline-btn");
+    const togglePop = open => {
+      pop.hidden = !open; btn.setAttribute("aria-expanded", String(open));
+      if (open) { pop.style.top = `${document.querySelector(".brand").getBoundingClientRect().bottom - app.getBoundingClientRect().top + 8}px`; refreshOffline(); }
+    };
+    btn.addEventListener("click", e => { e.stopPropagation(); togglePop(pop.hidden); });
+    document.addEventListener("click", e => { if (!pop.hidden && !e.target.closest("#offline-pop")) togglePop(false); });
+    document.getElementById("op-save").addEventListener("click", saveAllPapers);
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+    document.getElementById("op-ios").hidden = !(ios && !standalone);
+    let deferred = null;
+    const install = document.getElementById("install-btn");
+    window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferred = e; install.hidden = false; });
+    install.addEventListener("click", async () => { if (!deferred) return; deferred.prompt(); await deferred.userChoice; deferred = null; install.hidden = true; });
+    window.addEventListener("appinstalled", () => { install.hidden = true; });
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").then(() => navigator.serviceWorker.ready).then(refreshOffline).catch(refreshOffline);
+      navigator.serviceWorker.addEventListener("controllerchange", refreshOffline);
+    }
+    refreshOffline();
+  }
+
+  // ---------- views ----------
+  const indexEl = document.getElementById("index");
+  let indexBuilt = false;
+  function buildIndex() {
+    const grid = document.getElementById("index-grid");
+    [{ id: "core", label: famLabel.core }, ...FAMS].forEach(f => {
+      const sec = document.createElement("section"); sec.dataset.fam = f.id;
+      const ms = nodes.filter(n => n.f === f.id).sort((a, b) => a.t.localeCompare(b.t));
+      const h = document.createElement("h3");
+      h.innerHTML = `<span class="planet" style="--c:var(--fam-${f.id})"></span>${esc(f.label)} <span class="n">${ms.length}</span>`;
+      const ul = document.createElement("ul");
+      ms.forEach(n => {
+        const li = document.createElement("li"); li.dataset.i = n.i;
+        const b = document.createElement("button"); b.type = "button"; b.dataset.node = n.i;
+        b.innerHTML = `<span>${esc(n.t)}</span><span class="d">${n.d}</span>`;
+        li.append(b); ul.append(li);
+      });
+      sec.append(h, ul); grid.append(sec);
+    });
+    grid.addEventListener("click", e => { const b = e.target.closest("[data-node]"); if (b) select(+b.dataset.node); });
+    indexBuilt = true;
+  }
+  function filterIndex() {
+    if (!indexBuilt) return;
+    indexEl.querySelectorAll("section").forEach(sec => {
+      const famHidden = hidden.has(sec.dataset.fam);
+      let shown = 0;
+      sec.querySelectorAll("li").forEach(li => {
+        const ok = !famHidden && (!matches || matches.has(+li.dataset.i));
+        li.hidden = !ok; if (ok) shown++;
+      });
+      sec.hidden = shown === 0;
+    });
+  }
+  function setView(v) {
+    if (v === view) return;
+    const prev = view;
+    view = v;
+    ["sky", "orbits", "index"].forEach(id => document.getElementById(`v-${id}`).setAttribute("aria-pressed", String(id === v)));
+    indexEl.hidden = v !== "index";
+    canvas.style.visibility = v === "index" ? "hidden" : "visible";
+    document.querySelector(".key").style.visibility = v === "index" ? "hidden" : "visible";
+    hideTip();
+    if (v === "index") { if (!indexBuilt) buildIndex(); filterIndex(); request(); return; }
+    const from = nodes.map(n => [n.px, n.py]);
+    const to = nodes.map(n => v === "orbits" ? [n.ox, n.oy] : [n.x, n.y]);
+    if (reduceMotion || prev === "index") {
+      nodes.forEach((n, i) => { [n.px, n.py] = to[i]; });
+      fit(false); request(); return;
+    }
+    animating = true;
+    const ease = d3.easeCubicInOut;
+    const timer = d3.timer(el => {
+      const t = Math.min(1, el / 700), e = ease(t);
+      nodes.forEach((n, i) => { n.px = from[i][0] + (to[i][0] - from[i][0]) * e; n.py = from[i][1] + (to[i][1] - from[i][1]) * e; });
+      request();
+      if (t === 1) { timer.stop(); animating = false; request(); }
+    });
+    fit(true);
+  }
+  ["sky", "orbits", "index"].forEach(id => document.getElementById(`v-${id}`).addEventListener("click", () => setView(id)));
+
+  // ---------- area chips ----------
+  const chips = document.getElementById("chips");
+  function renderChips() {
+    chips.innerHTML = "";
+    [...FAMS, { id: "core", label: famLabel.core, count: DATA.core }].forEach(f => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "chip"; b.setAttribute("aria-pressed", String(!hidden.has(f.id)));
+      b.title = hidden.has(f.id) ? `Show ${f.label}` : `Hide ${f.label}`;
+      b.innerHTML = `<span class="planet" style="--c:var(--fam-${f.id})"></span>${esc(f.label)} <span class="n">${f.count}</span>`;
+      b.addEventListener("click", () => { hidden.has(f.id) ? hidden.delete(f.id) : hidden.add(f.id); renderChips(); filterIndex(); request(); });
+      chips.append(b);
+    });
+    if (hidden.size) {
+      const r = document.createElement("button"); r.type = "button"; r.className = "chip reset"; r.textContent = "Show all";
+      r.addEventListener("click", () => { hidden.clear(); renderChips(); filterIndex(); request(); });
+      chips.append(r);
+    }
+  }
+  renderChips();
+
+  // size key (same radius formula as the map)
+  document.getElementById("mag-scale").innerHTML = [2, 10, 40, 100].map(d => {
+    const r = rad({ d }) * 0.9;
+    return `<span><i class="planet" style="--c:#dfe4ff;width:${(2 * r).toFixed(1)}px;height:${(2 * r).toFixed(1)}px"></i>${d}</span>`;
+  }).join("");
+
+  // ---------- search ----------
+  const q = document.getElementById("q");
+  const results = document.getElementById("results");
+  let active = 0, hits = [];
+  function runSearch() {
+    query = q.value.trim().toLowerCase();
+    if (!query) { matches = null; results.hidden = true; q.setAttribute("aria-expanded", "false"); filterIndex(); request(); return; }
+    const words = query.split(/\s+/);
+    const scored = [];
+    for (const n of nodes) {
+      const hay = (n.t + " " + n.p + " " + n.tg.join(" ")).toLowerCase();
+      if (words.every(w => hay.includes(w))) scored.push([n.t.toLowerCase().startsWith(query) ? 2 : n.t.toLowerCase().includes(query) ? 1 : 0, n]);
+    }
+    scored.sort((a, b) => b[0] - a[0] || b[1].d - a[1].d);
+    matches = new Set(scored.map(s => s[1].i));
+    hits = scored.slice(0, 8).map(s => s[1]);
+    active = 0;
+    renderResults();
+    filterIndex(); request();
+  }
+  function renderResults() {
+    results.innerHTML = "";
+    if (!hits.length) {
+      const li = document.createElement("li"); li.className = "label"; li.style.padding = "9px"; li.textContent = "No notes match. Try fewer words.";
+      results.append(li);
+    }
+    hits.forEach((n, j) => {
+      const li = document.createElement("li");
+      const b = document.createElement("button"); b.type = "button"; b.setAttribute("role", "option"); b.setAttribute("aria-selected", String(j === active));
+      b.innerHTML = `<span class="planet" style="--c:var(--fam-${n.f})"></span><span class="t">${esc(n.t)}</span><span class="p">${esc(famLabel[n.f])} · ${n.d} connections</span>`;
+      b.addEventListener("click", () => pick(n));
+      li.append(b); results.append(li);
+    });
+    results.hidden = false; q.setAttribute("aria-expanded", "true");
+  }
+  function pick(n) {
+    results.hidden = true; q.setAttribute("aria-expanded", "false");
+    if (hidden.has(n.f)) { hidden.delete(n.f); renderChips(); }
+    select(n.i, { center: view !== "index" });
+  }
+  q.addEventListener("input", runSearch);
+  q.addEventListener("keydown", e => {
+    if (e.key === "ArrowDown" && hits.length) { active = (active + 1) % hits.length; renderResults(); e.preventDefault(); }
+    else if (e.key === "ArrowUp" && hits.length) { active = (active - 1 + hits.length) % hits.length; renderResults(); e.preventDefault(); }
+    else if (e.key === "Enter" && hits.length) { pick(hits[active]); }
+    else if (e.key === "Escape") { q.value = ""; runSearch(); q.blur(); }
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key === "/" && document.activeElement !== q) { e.preventDefault(); q.focus(); }
+    else if (e.key === "Escape" && !viewer.hidden) closeViewer();
+    else if (e.key === "Escape" && !document.getElementById("offline-pop").hidden) document.getElementById("offline-pop").hidden = true;
+    else if (e.key === "Escape" && document.activeElement !== q && !panel.hidden) closePanel();
+  });
+  document.addEventListener("click", e => { if (!e.target.closest(".search")) { results.hidden = true; q.setAttribute("aria-expanded", "false"); } });
+
+  // ---------- header stats ----------
+  const fmt = d3.format(",");
+  document.getElementById("updated").textContent = `Updated ${d3.timeFormat("%-d %b %Y")(d3.timeParse("%Y-%m-%d")(DATA.generated))}`;
+  document.getElementById("stats").innerHTML = `<span><b>${fmt(N)}</b> notes</span><span><b>${fmt(links.length)}</b> links</span><span><b>${FAMS.length}</b> areas</span>`;
+  q.placeholder = `Search ${fmt(N)} notes`;
+  new ResizeObserver(() => resize()).observe(app);
+
+  // ---------- open at rest ----------
+  resize();
+  startLoop();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => request());
+  if (APP_MODE) setupApp();
+}
+
+(() => {
+  const inline = document.getElementById("atlas-data").textContent.trim();
+  if (inline.startsWith("{")) { boot(JSON.parse(inline)); return; }
+  const fail = () => {
+    const p = document.createElement("p"); p.className = "load-error";
+    p.textContent = "Couldn't load your notes. Connect to the internet once, then reopen the app.";
+    document.getElementById("app").append(p);
+  };
+  // Encrypted notes (data.bin) need the code; an unlocked build ships data.json instead.
+  fetch("data.bin")
+    .then(r => { if (!r.ok) throw new Error("unlocked build"); return r.arrayBuffer(); })
+    .then(showLock)
+    .catch(() => fetch("data.json").then(r => r.json()).then(boot).catch(fail));
+
+  async function unlock(buf, code) {
+    const bytes = new Uint8Array(buf);
+    if (String.fromCharCode(bytes[0], bytes[1], bytes[2]) !== "SB1") throw new Error("format");
+    const iterations = new DataView(buf).getUint32(3);
+    const salt = bytes.slice(7, 23), iv = bytes.slice(23, 35), sealed = bytes.slice(35);
+    const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(code.normalize("NFC")), "PBKDF2", false, ["deriveKey"]);
+    const key = await crypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt, iterations }, base,
+      { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+    const gz = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, sealed);  // fails if the code is wrong
+    const text = await new Response(new Blob([gz]).stream().pipeThrough(new DecompressionStream("gzip"))).text();
+    return JSON.parse(text);
+  }
+
+  function showLock(buf) {
+    const lock = document.getElementById("lock"), form = document.getElementById("lock-form");
+    const input = document.getElementById("lock-code"), go = document.getElementById("lock-go"), err = document.getElementById("lock-error");
+    const others = [...document.querySelectorAll("#app > :not(#lock)")];
+    others.forEach(el => { el.inert = true; });
+    lock.hidden = false;
+    setTimeout(() => input.focus(), 60);
+    input.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); form.requestSubmit(); } });
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      err.textContent = ""; go.disabled = true; go.textContent = "Unlocking…";
+      try {
+        const data = await unlock(buf, input.value);
+        input.value = "";
+        others.forEach(el => { el.inert = false; });
+        lock.hidden = true;
+        boot(data);
+        let hiddenAt = 0;  // lock again after 5 minutes in the background
+        document.addEventListener("visibilitychange", () => {
+          if (document.hidden) hiddenAt = Date.now();
+          else if (hiddenAt && Date.now() - hiddenAt > 5 * 60 * 1000) location.reload();
+        });
+      } catch (x) {
+        go.disabled = false; go.textContent = "Unlock";
+        err.textContent = x && x.name === "OperationError" ? "That code didn't work. Try again." : "This browser can't open the notes. Update it and try again.";
+        lock.classList.remove("shake"); void lock.offsetWidth; lock.classList.add("shake");
+        input.select();
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>
