@@ -1,6 +1,6 @@
 // Second Brain service worker: the app shell and notes are network-first (fresh when online,
 // cached for offline); past-paper pages and fonts/libraries are cache-first.
-const VERSION = "0429e2563bdb";
+const VERSION = "a3e543e40ded";
 const SHELL = `sb-shell-${VERSION}`, PAPERS = "sb-papers-v1", LIBS = "sb-libs-v1";
 const PRECACHE = ["./", "index.html", "data.bin", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png", "icons/favicon-32.png"];
 const LIB_URLS = ["https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js", "https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js", "https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@400;500;600&family=Unbounded:wght@500;600&display=swap"];
